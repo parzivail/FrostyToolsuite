@@ -7,6 +7,7 @@ using FrostySdk.IO;
 using FrostySdk.Managers;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using System.Windows.Media;
 
 namespace Frosty.Core
@@ -99,6 +100,7 @@ namespace Frosty.Core
         {
             exportTypes.Add(new AssetExportType("bin", "Binary File"));
             exportTypes.Add(new AssetExportType("xml", "XML File"));
+            exportTypes.Add(new AssetExportType("json", "JSON File"));
         }
 
         /// <summary>
@@ -158,6 +160,12 @@ namespace Frosty.Core
                 return true;
             }
             
+            if (filterType == "json")
+            {
+                ExportToJson(entry, path);
+                return true;
+            }
+            
             if (filterType == "bin")
             {
                 ExportToBin(entry, path);
@@ -188,6 +196,23 @@ namespace Frosty.Core
         {
             EbxAsset asset = App.AssetManager.GetEbx(entry);
             using (EbxXmlWriter writer = new EbxXmlWriter(new FileStream(path, FileMode.Create), App.AssetManager))
+                writer.WriteObjects(asset.Objects);
+        }
+        
+        private void ExportToJson(EbxAssetEntry entry, string path)
+        {
+            var profileFilename = Path.Combine(Path.GetDirectoryName(path), "_profile.json");
+            if (!File.Exists(profileFilename))
+            {
+                App.Logger.LogError($"Could not find JSON property profile in export directory: {profileFilename}");
+                App.Logger.LogError("Will not export due to circular references.");
+                return;
+            }
+
+            var profile = JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(profileFilename));
+            
+            EbxAsset asset = App.AssetManager.GetEbx(entry);
+            using (var writer = new EbxJsonWriter(new FileStream(path, FileMode.Create), App.AssetManager, profile))
                 writer.WriteObjects(asset.Objects);
         }
 
